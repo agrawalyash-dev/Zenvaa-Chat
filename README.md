@@ -1,4 +1,4 @@
-![Documentation Banner](./doc-banner.png)
+![Documentation Banner](./banner.png)
 
 # Zenvaa Chat 🔐
 
