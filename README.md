@@ -18,13 +18,12 @@ Messages are encrypted and decrypted entirely on the client device — the serve
 - [System Architecture](#system-architecture)
 - [Encryption Flow (E2EE)](#encryption-flow-e2ee)
 - [Project Scope](#project-scope)
-- [Status](#status)
 
 ---
 
 ## About
 
-Zenvaa Chat enables users to communicate securely using unique usernames, while ensuring message contents remain private through end-to-end encryption. Unlike public messaging platforms, Zenvaa Chat follows an **approval-based registration model** — users can register and request access, but accounts are activated only after administrator approval. This is intentional, since the app is meant to be demonstrated to recruiters, friends, family, and selected testers rather than being publicly available.
+Zenvaa Chat enables users to communicate securely using unique usernames, while ensuring message contents remain private through end-to-end encryption. Unlike public messaging platforms, Zenvaa Chat follows an **approval-based access model** — accounts are activated only after approval, managed through Clerk. This is intentional, since the app is meant to be demonstrated to recruiters, friends, family, and selected testers rather than being publicly available.
 
 ### Project Objectives
 
@@ -41,12 +40,9 @@ Zenvaa Chat enables users to communicate securely using unique usernames, while 
 
 - End-to-end encrypted one-to-one messaging
 - Username-based user discovery
-- Email and Google OAuth authentication (via Clerk)
-- Approval-based account activation
-- Secure password hashing
-- Session and device management
+- Authentication and approval-based account activation (via Clerk)
 - Real-time message delivery
-- User blocking and reporting
+- Rate-limited APIs
 - Modern, responsive user interface
 - Privacy-focused architecture with encrypted message storage
 
@@ -58,7 +54,7 @@ Zenvaa Chat enables users to communicate securely using unique usernames, while 
 |---|---|
 | Frontend | React.js |
 | Backend | NestJS |
-| Authentication | Clerk (Email + Google OAuth) |
+| Authentication | Clerk |
 | Database & Realtime | ConvexDB |
 | Encryption | WebCrypto API (ECDH key exchange + AES-GCM) |
 
@@ -70,7 +66,7 @@ Zenvaa Chat enables users to communicate securely using unique usernames, while 
 
 - **Writes** (e.g. sending a message) flow through `React.js → NestJS → ConvexDB`, so NestJS can authenticate and validate the request before anything is persisted.
 - **Realtime reads** flow directly `ConvexDB → React.js` via Convex's reactive subscriptions — this delivers new messages instantly without any manual WebSocket handling.
-- **Clerk** issues and manages the user's session on the frontend; **NestJS** verifies that session/token before trusting any write request.
+- **Clerk** issues and manages the user's session on the frontend; **NestJS** verifies that session/token before trusting any write request, and also gates account activation.
 - Convex query functions independently check the requesting user's identity before returning any data — so direct client reads remain access-controlled, not open.
 
 ---
