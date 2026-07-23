@@ -1,122 +1,96 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useEffect } from "react";
+import { useAuth, useUser } from "@clerk/react";
+import { useQuery } from "convex/react";
+import { anyApi } from "convex/server";
+import Footer from "./components/footer";
+import Header from "./components/header";
+import Main from "./components/main";
+import Home from "./pages/home";
+import SetUsernameDialog from "./components/set-username-dialog";
+import SignInPrompt from "./components/sign-in-prompt";
+import { Skeleton } from "@/components/ui/skeleton";
+import { apiFetch } from "@/lib/api";
+import { ensureKeyPair } from "@/lib/crypto";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const { isLoaded, isSignedIn, user } = useUser();
+  const { getToken } = useAuth();
+
+  const me = useQuery(
+    anyApi.users.getMe,
+    isSignedIn && user?.id ? { clerkUserId: user.id } : "skip",
+  ) as { username: string | null; hasPublicKey: boolean } | null | undefined;
+
+  const checkingUsername = isSignedIn && me === undefined;
+  const needsUsername = isSignedIn && me !== undefined && !me?.username;
+
+  // Once we know the user has a username (whether they just set it, or
+  // already had one from a previous session), make sure this device has
+  // a keypair. If it doesn't — first time on this device, or local
+  // storage was cleared — generate one and upload the public half.
+  useEffect(() => {
+    // Wait until we have a username and the backend sync state (`me`) is fully loaded
+    if (!isSignedIn || !me?.username || me.hasPublicKey === undefined) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // Ensure local keypair exists (generates one if missing)
+        const { publicKeyBase64 } = await ensureKeyPair();
+
+        // If the backend already knows about a public key, we don't need to re-upload
+        if (me.hasPublicKey) return;
+
+        const token = await getToken();
+        if (!token || cancelled) return;
+
+        // Sync local public key up to the backend if it's missing there
+        await apiFetch("/users/public-key", token, {
+          method: "POST",
+          body: JSON.stringify({ publicKey: publicKeyBase64 }),
+        });
+      } catch (err) {
+        console.error("Failed to ensure encryption keys:", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSignedIn, me?.username, me?.hasPublicKey, getToken]);
+
+  const renderMain = () => {
+    if (!isLoaded) {
+      // Clerk hasn't resolved auth state yet — don't flash the sign-in
+      // prompt or the app before we actually know.
+      return <Skeleton className="h-full w-full rounded-none" />;
+    }
+
+    if (!isSignedIn) {
+      return <SignInPrompt />;
+    }
+
+    if (checkingUsername) {
+      return <Skeleton className="h-full w-full rounded-none" />;
+    }
+
+    if (needsUsername) {
+      return <SetUsernameDialog />;
+    }
+
+    return <Home />;
+  };
 
   return (
     <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
+      <div className="flex flex-col h-screen w-full max-w-7xl mx-auto md:border-x overflow-hidden">
+        <Header />
+        <Main>{renderMain()}</Main>
+        <Footer />
+      </div>
     </>
-  )
+  );
 }
 
-export default App
+export default App;
