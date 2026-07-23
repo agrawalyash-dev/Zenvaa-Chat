@@ -1,4 +1,4 @@
-import { mutation } from './_generated/server';
+import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { ConvexError } from 'convex/values';
 
@@ -11,7 +11,9 @@ export const sendMessage = mutation({
   handler: async (ctx, args) => {
     const sender = await ctx.db
       .query('users')
-      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.senderClerkId))
+      .withIndex('by_clerk_user_id', (q) =>
+        q.eq('clerkUserId', args.senderClerkId),
+      )
       .unique();
 
     if (!sender) {
@@ -40,7 +42,9 @@ export const sendMessage = mutation({
     let conversation = await ctx.db
       .query('conversations')
       .withIndex('by_participants', (q) =>
-        q.eq('participantOne', participantOne).eq('participantTwo', participantTwo),
+        q
+          .eq('participantOne', participantOne)
+          .eq('participantTwo', participantTwo),
       )
       .unique();
 
@@ -59,5 +63,51 @@ export const sendMessage = mutation({
     });
 
     return { conversationId: conversation!._id };
+  },
+});
+
+export const listMessages = query({
+  args: {
+    conversationId: v.id('conversations'),
+    myClerkUserId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const conversation = await ctx.db.get(args.conversationId);
+    if (!conversation) {
+      return [];
+    }
+
+    const me = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_user_id', (q) =>
+        q.eq('clerkUserId', args.myClerkUserId),
+      )
+      .unique();
+
+    if (!me) {
+      return [];
+    }
+
+    if (
+      conversation.participantOne !== me._id &&
+      conversation.participantTwo !== me._id
+    ) {
+      return [];
+    }
+
+    const messages = await ctx.db
+      .query('messages')
+      .withIndex('by_conversation', (q) =>
+        q.eq('conversationId', args.conversationId),
+      )
+      .order('asc')
+      .collect();
+
+    return messages.map((msg) => ({
+      _id: msg._id,
+      _creationTime: msg._creationTime,
+      ciphertext: msg.ciphertext,
+      isMine: msg.senderId === me._id,
+    }));
   },
 });

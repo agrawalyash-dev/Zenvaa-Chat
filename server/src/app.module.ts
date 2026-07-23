@@ -16,7 +16,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
     ThrottlerModule.forRoot([
       {
         ttl: 60000, // 60 seconds
-        limit: 20,  // 20 requests per 60s per IP, as a sane global default
+        limit: 20, // 20 requests per 60s per IP, as a sane global default
       },
     ]),
     AuthModule,

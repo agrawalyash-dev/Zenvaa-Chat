@@ -13,7 +13,9 @@ export default defineSchema({
   conversations: defineTable({
     participantOne: v.id('users'), // always the smaller _id, for consistent lookup
     participantTwo: v.id('users'),
-  }).index('by_participants', ['participantOne', 'participantTwo']),
+  })
+    .index('by_participants', ['participantOne', 'participantTwo'])
+    .index('by_participant_two', ['participantTwo']),
 
   messages: defineTable({
     conversationId: v.id('conversations'),

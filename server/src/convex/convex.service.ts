@@ -25,23 +25,27 @@ export class ConvexService {
   }
 
   async setUsername(clerkUserId: string, username: string) {
-  return this.client.mutation(api.users.setUsername, {
-    clerkUserId,
-    username,
-  });
-}
+    return this.client.mutation(api.users.setUsername, {
+      clerkUserId,
+      username,
+    });
+  }
 
-async getPublicKeyByUsername(username: string) {
-  return this.client.query(api.users.getPublicKeyByUsername, {
-    username,
-  });
-}
+  async getPublicKeyByUsername(username: string) {
+    return this.client.query(api.users.getPublicKeyByUsername, {
+      username,
+    });
+  }
 
-async sendMessage(senderClerkId: string, recipientUsername: string, ciphertext: string) {
-  return this.client.mutation(api.messages.sendMessage, {
-    senderClerkId,
-    recipientUsername,
-    ciphertext,
-  });
-}
+  async sendMessage(
+    senderClerkId: string,
+    recipientUsername: string,
+    ciphertext: string,
+  ) {
+    return this.client.mutation(api.messages.sendMessage, {
+      senderClerkId,
+      recipientUsername,
+      ciphertext,
+    });
+  }
 }

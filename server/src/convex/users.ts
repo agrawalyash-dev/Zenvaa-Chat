@@ -9,7 +9,9 @@ export const savePublicKey = mutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query('users')
-      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
+      .withIndex('by_clerk_user_id', (q) =>
+        q.eq('clerkUserId', args.clerkUserId),
+      )
       .unique();
 
     if (existing) {
@@ -29,27 +31,35 @@ export const setUsername = mutation({
     username: v.string(),
   },
   handler: async (ctx, args) => {
-    // Check if username is already taken by someone else
+    // Normalize to lowercase so uniqueness AND search both behave consistently,
+    // regardless of the case the user typed at signup.
+    const normalizedUsername = args.username.trim().toLowerCase();
+
     const existingWithUsername = await ctx.db
       .query('users')
-      .withIndex('by_username', (q) => q.eq('username', args.username))
+      .withIndex('by_username', (q) => q.eq('username', normalizedUsername))
       .unique();
 
-    if (existingWithUsername && existingWithUsername.clerkUserId !== args.clerkUserId) {
+    if (
+      existingWithUsername &&
+      existingWithUsername.clerkUserId !== args.clerkUserId
+    ) {
       throw new ConvexError('Username is already taken');
     }
 
     const existingUser = await ctx.db
       .query('users')
-      .withIndex('by_clerk_user_id', (q) => q.eq('clerkUserId', args.clerkUserId))
+      .withIndex('by_clerk_user_id', (q) =>
+        q.eq('clerkUserId', args.clerkUserId),
+      )
       .unique();
 
     if (existingUser) {
-      await ctx.db.patch(existingUser._id, { username: args.username });
+      await ctx.db.patch(existingUser._id, { username: normalizedUsername });
     } else {
       await ctx.db.insert('users', {
         clerkUserId: args.clerkUserId,
-        username: args.username,
+        username: normalizedUsername,
       });
     }
   },
@@ -62,7 +72,9 @@ export const getPublicKeyByUsername = query({
   handler: async (ctx, args) => {
     const user = await ctx.db
       .query('users')
-      .withIndex('by_username', (q) => q.eq('username', args.username))
+      .withIndex('by_username', (q) =>
+        q.eq('username', args.username.toLowerCase()),
+      )
       .unique();
 
     if (!user || !user.publicKey) {
@@ -70,5 +82,48 @@ export const getPublicKeyByUsername = query({
     }
 
     return { publicKey: user.publicKey };
+  },
+});
+
+export const searchUsers = query({
+  args: {
+    searchTerm: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const term = args.searchTerm.trim().toLowerCase();
+    if (!term) {
+      return [];
+    }
+
+    const results = await ctx.db
+      .query('users')
+      .withIndex('by_username', (q) =>
+        q.gte('username', term).lt('username', term + '\uffff'),
+      )
+      .take(10);
+
+    return results
+      .filter((u) => u.username)
+      .map((u) => ({ username: u.username as string }));
+  },
+});
+
+export const getMe = query({
+  args: {
+    clerkUserId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_user_id', (q) =>
+        q.eq('clerkUserId', args.clerkUserId),
+      )
+      .unique();
+
+    if (!user) {
+      return null;
+    }
+
+    return { username: user.username ?? null, hasPublicKey: !!user.publicKey };
   },
 });
